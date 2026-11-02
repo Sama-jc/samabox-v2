@@ -5,6 +5,8 @@ export class ValidationError extends Error {
   }
 }
 
+export const VALID_ENTRY_TYPES = ['meeting', 'reminder'];
+
 const TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DATE_REGEX = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
@@ -13,10 +15,34 @@ export function getTodayDateString() {
 }
 
 export function validateMeetingData(data = {}) {
-  const { title, startTime, endTime, date, location = '', notes = '' } = data;
+  const { title, location = '', notes = '' } = data;
 
   if (typeof title !== 'string' || title.trim().length === 0) {
     throw new ValidationError('Meeting title is required and cannot be empty.');
+  }
+
+  // V2 fields resolution (supports camelCase and snake_case)
+  const rawAllDay = data.allDay !== undefined ? data.allDay : data.all_day;
+  const isAllDay = rawAllDay === true || rawAllDay === 1 || rawAllDay === '1';
+  const allDay = isAllDay ? 1 : 0;
+
+  let rawEntryType = data.entryType !== undefined ? data.entryType : data.entry_type;
+  if (rawEntryType !== undefined) {
+    if (!VALID_ENTRY_TYPES.includes(rawEntryType)) {
+      throw new ValidationError(`entryType must be one of: ${VALID_ENTRY_TYPES.join(', ')}.`);
+    }
+  } else {
+    rawEntryType = allDay === 1 ? 'reminder' : 'meeting';
+  }
+  const entryType = rawEntryType;
+
+  // Handle start and end times
+  let startTime = data.startTime !== undefined ? data.startTime : data.start_time;
+  let endTime = data.endTime !== undefined ? data.endTime : data.end_time;
+
+  if (allDay === 1 || entryType === 'reminder') {
+    if (!startTime) startTime = '00:00';
+    if (!endTime) endTime = '23:59';
   }
 
   if (typeof startTime !== 'string' || !TIME_REGEX.test(startTime)) {
@@ -31,10 +57,16 @@ export function validateMeetingData(data = {}) {
     throw new ValidationError('startTime must be before endTime.');
   }
 
-  const effectiveDate = date ? String(date).trim() : getTodayDateString();
+  const effectiveDate = data.date ? String(data.date).trim() : getTodayDateString();
   if (!DATE_REGEX.test(effectiveDate)) {
     throw new ValidationError('date must be in valid format YYYY-MM-DD.');
   }
+
+  const rawSourceId = data.sourceId !== undefined ? data.sourceId : data.source_id;
+  const sourceId = rawSourceId ? String(rawSourceId).trim() : null;
+
+  const rawExternalUid = data.externalUid !== undefined ? data.externalUid : data.external_uid;
+  const externalUid = rawExternalUid ? String(rawExternalUid).trim() : null;
 
   return {
     title: title.trim(),
@@ -42,7 +74,11 @@ export function validateMeetingData(data = {}) {
     endTime,
     date: effectiveDate,
     location: typeof location === 'string' ? location.trim() : '',
-    notes: typeof notes === 'string' ? notes.trim() : ''
+    notes: typeof notes === 'string' ? notes.trim() : '',
+    sourceId,
+    entryType,
+    allDay,
+    externalUid
   };
 }
 
@@ -68,12 +104,23 @@ export function detectMeetingConflicts(meetings = []) {
   }
 
   for (let i = 0; i < sorted.length; i++) {
-    const keyA = sorted[i].id ?? String(i);
+    const meetingA = sorted[i];
+    // Reminders and all-day events are excluded from hourly collision detection
+    if (meetingA.allDay === 1 || meetingA.entryType === 'reminder') {
+      continue;
+    }
+
+    const keyA = meetingA.id ?? String(i);
     for (let j = i + 1; j < sorted.length; j++) {
-      const keyB = sorted[j].id ?? String(j);
-      // Since sorted, sorted[j].startTime >= sorted[i].startTime
-      // Overlap occurs if sorted[j].startTime < sorted[i].endTime
-      if (sorted[j].startTime < sorted[i].endTime) {
+      const meetingB = sorted[j];
+      if (meetingB.allDay === 1 || meetingB.entryType === 'reminder') {
+        continue;
+      }
+
+      const keyB = meetingB.id ?? String(j);
+      // Since sorted, meetingB.startTime >= meetingA.startTime
+      // Overlap occurs if meetingB.startTime < meetingA.endTime
+      if (meetingB.startTime < meetingA.endTime) {
         conflictMap.get(keyA).add(keyB);
         conflictMap.get(keyB).add(keyA);
       }
