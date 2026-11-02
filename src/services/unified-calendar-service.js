@@ -113,8 +113,11 @@ export class UnifiedCalendarService {
     return {
       date: queryDate,
       meetings,
+      allDayEvents: reminders,
       reminders,
+      projectedTasks: tasks,
       tasks,
+      calendarSources: sources,
       sources,
       stats: {
         totalMeetings,
