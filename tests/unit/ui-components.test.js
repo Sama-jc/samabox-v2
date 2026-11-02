@@ -8,6 +8,8 @@ import {
 import { renderAgendaView } from '../../src/public/js/components/agenda-view.js';
 import { renderTaskView } from '../../src/public/js/components/task-view.js';
 import { renderSummaryView } from '../../src/public/js/components/summary-view.js';
+import { renderCalendarView } from '../../src/public/js/components/calendar-view.js';
+import { renderCalendarModal } from '../../src/public/js/components/calendar-modal.js';
 import { resolveRoute, Router } from '../../src/public/js/router.js';
 
 describe('Frontend UI Components & Security Sanitization', () => {
@@ -300,6 +302,182 @@ describe('Frontend UI Components & Security Sanitization', () => {
       const html = renderSummaryView(mockSummary);
       assert.ok(html.includes('40%') || html.includes('2 de 5'));
       assert.ok(html.includes('Patch Critical CVE'));
+    });
+  });
+
+  describe('renderCalendarView (Dedicated Calendar Screen)', () => {
+    const mockUnifiedData = {
+      date: '2026-11-02',
+      meetings: [
+        {
+          id: 'm1',
+          title: 'Local Standup',
+          startTime: '09:00',
+          endTime: '10:00',
+          hasConflict: true,
+          conflictingIds: ['m2'],
+          sourceId: null,
+          sourceName: 'Local',
+          sourceColor: '#388bfd',
+          isExternal: false,
+          location: 'Sala 1',
+          notes: 'Daily sync'
+        },
+        {
+          id: 'm2',
+          title: 'Google SecOps Incident Call',
+          startTime: '09:30',
+          endTime: '10:30',
+          hasConflict: true,
+          conflictingIds: ['m1'],
+          sourceId: 'src-google',
+          sourceName: 'Google Calendar SecOps',
+          sourceColor: '#ea4335',
+          isExternal: true,
+          location: 'Meet https://meet.google.com/xyz',
+          notes: 'External incident response'
+        }
+      ],
+      allDayEvents: [
+        {
+          id: 'rem-1',
+          title: 'TLS Certificate Expiration Reminder',
+          startTime: '00:00',
+          endTime: '23:59',
+          allDay: 1,
+          entryType: 'reminder',
+          sourceId: null,
+          sourceName: 'Local',
+          sourceColor: '#2ea043',
+          isExternal: false
+        }
+      ],
+      projectedTasks: [
+        {
+          id: 'task-101',
+          title: 'Patch External Firewall Rules',
+          priority: 'Alta',
+          status: 'Pendiente',
+          isFocus: true,
+          date: '2026-11-02'
+        },
+        {
+          id: 'task-102',
+          title: 'Update SIEM Correlation Rules',
+          priority: 'Media',
+          status: 'Completada',
+          isFocus: false,
+          date: '2026-11-02'
+        }
+      ],
+      calendarSources: [
+        { id: 'src-google', name: 'Google Calendar SecOps', color: '#ea4335', is_enabled: 1 }
+      ]
+    };
+
+    it('should render date controls and manage accounts CTA button', () => {
+      const html = renderCalendarView(mockUnifiedData);
+      assert.ok(html.includes('btn-manage-calendars') || html.includes('Gestionar Cuentas'), 'Must have manage calendars button');
+      assert.ok(html.includes('2026-11-02'), 'Must display active date');
+      assert.ok(html.includes('btn-calendar-prev') || html.includes('btn-date-prev'));
+      assert.ok(html.includes('btn-calendar-next') || html.includes('btn-date-next'));
+    });
+
+    it('should render all-day reminders lane with color badge', () => {
+      const html = renderCalendarView(mockUnifiedData);
+      assert.ok(html.includes('calendar-all-day-lane') || html.includes('reminders-lane'));
+      assert.ok(html.includes('TLS Certificate Expiration Reminder'));
+      assert.ok(html.includes('Local'));
+    });
+
+    it('should render timed meetings timeline with multi-source colors and collision indicators', () => {
+      const html = renderCalendarView(mockUnifiedData);
+      assert.ok(html.includes('Local Standup'));
+      assert.ok(html.includes('Google SecOps Incident Call'));
+      assert.ok(html.includes('#ea4335') || html.includes('style="--source-color: #ea4335"'));
+      assert.ok(html.includes('Google Calendar SecOps'));
+      assert.ok(html.includes('Conflicto') || html.includes('has-conflict'), 'Must indicate conflict for overlapping meetings');
+      // Local meeting should have delete button, external meeting should be marked readonly
+      assert.ok(html.includes('btn-delete-meeting'));
+      assert.ok(html.includes('badge-external') || html.includes('Solo lectura') || html.includes('is-external'));
+    });
+
+    it('should render integrated tasks projection lane for the selected date with status switcher', () => {
+      const html = renderCalendarView(mockUnifiedData);
+      assert.ok(html.includes('calendar-projected-tasks') || html.includes('tasks-projection-section'));
+      assert.ok(html.includes('Patch External Firewall Rules'));
+      assert.ok(html.includes('DAILY FOCUS') || html.includes('Daily Focus'));
+      assert.ok(html.includes('priority-Alta'));
+      assert.ok(html.includes('select-projected-task-status') || html.includes('select-status'));
+      assert.ok(html.includes('Update SIEM Correlation Rules'));
+    });
+
+    it('should display empty states gracefully when no meetings or tasks exist', () => {
+      const html = renderCalendarView({
+        date: '2026-11-03',
+        meetings: [],
+        allDayEvents: [],
+        projectedTasks: [],
+        calendarSources: []
+      });
+      assert.ok(html.includes('empty-state') || html.includes('No hay reuniones'));
+    });
+  });
+
+  describe('renderCalendarModal (Calendar Accounts Manager)', () => {
+    const mockSources = [
+      {
+        id: 's1',
+        name: 'Work Exchange',
+        color: '#0969da',
+        type: 'subscription',
+        url: 'https://work.example.com/calendar.ics',
+        is_enabled: 1,
+        sync_status: 'success',
+        last_synced_at: '2026-11-02T08:00:00Z',
+        sync_error: null
+      },
+      {
+        id: 's2',
+        name: 'Personal Offline',
+        color: '#8250df',
+        type: 'manual_import',
+        url: null,
+        is_enabled: 0,
+        sync_status: 'idle',
+        last_synced_at: null,
+        sync_error: null
+      }
+    ];
+
+    it('should render modal dialog structure with close button', () => {
+      const html = renderCalendarModal(mockSources);
+      assert.ok(html.includes('calendar-modal-container') || html.includes('modal-calendar'));
+      assert.ok(html.includes('btn-close-modal'));
+    });
+
+    it('should render iCal URL subscription form with name, url and color input', () => {
+      const html = renderCalendarModal(mockSources);
+      assert.ok(html.includes('form-add-subscription') || html.includes('form-subscription'));
+      assert.ok(html.includes('input-sub-name') || html.includes('sub-name'));
+      assert.ok(html.includes('input-sub-url') || html.includes('sub-url'));
+      assert.ok(html.includes('input-sub-color') || html.includes('sub-color'));
+    });
+
+    it('should render offline .ics file upload form with file input and name', () => {
+      const html = renderCalendarModal(mockSources);
+      assert.ok(html.includes('form-import-ics') || html.includes('form-upload-ics'));
+      assert.ok(html.includes('type="file"') && (html.includes('.ics') || html.includes('text/calendar')));
+    });
+
+    it('should render list of connected sources with color swatch, toggle switch, sync and delete buttons', () => {
+      const html = renderCalendarModal(mockSources);
+      assert.ok(html.includes('Work Exchange'));
+      assert.ok(html.includes('#0969da'));
+      assert.ok(html.includes('Personal Offline'));
+      assert.ok(html.includes('toggle-source-enabled') || html.includes('btn-toggle-source'));
+      assert.ok(html.includes('btn-sync-source') || html.includes('btn-sync'));
+      assert.ok(html.includes('btn-delete-source') || html.includes('btn-delete'));
     });
   });
 });
