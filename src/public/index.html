@@ -31,7 +31,28 @@
     </div>
   </header>
 
-  <!-- Morning Kickoff Summary Bar -->
+  <!-- Navigation Bar (SPA Hash Router) -->
+  <nav class="app-nav" aria-label="Navegación principal">
+    <a href="#/summary" class="nav-link active" data-route="summary">
+      <span class="nav-icon">📊</span> Resumen
+    </a>
+    <a href="#/calendar" class="nav-link" data-route="calendar">
+      <span class="nav-icon">📅</span> Calendario
+    </a>
+    <a href="#/tasks" class="nav-link" data-route="tasks">
+      <span class="nav-icon">📋</span> Tareas
+    </a>
+    <a href="#/news" class="nav-link" data-route="news">
+      <span class="nav-icon">🛡️</span> Noticias
+    </a>
+  </nav>
+
+  <!-- Dynamic SPA View Container -->
+  <main id="view-container" class="view-container">
+    <!-- Rendered dynamically by Router and Views -->
+  </main>
+
+  <!-- Morning Kickoff Summary Bar (Shared Status) -->
   <section id="morning-kickoff-bar" class="kickoff-summary-bar">
     <div class="metric-card metric-briefing">
       <div class="metric-icon">📰</div>
@@ -63,8 +84,8 @@
     </div>
   </section>
 
-  <!-- 3-Column Main Dashboard Grid -->
-  <main class="dashboard-grid">
+  <!-- Baseline Legacy Grid (Preserved for compatibility) -->
+  <div id="legacy-dashboard-grid" class="dashboard-grid hidden" style="display:none;" aria-hidden="true">
     <!-- Columna 1: Daily Security Briefing -->
     <section class="dashboard-column column-briefing">
       <div class="column-header">
@@ -183,7 +204,7 @@
         <div class="loading-state">Cargando tareas...</div>
       </div>
     </section>
-  </main>
+  </div>
 
   <footer class="app-footer">
     <p>Samabox &copy; 2026 — Morning Kickoff Dashboard. Arquitectura limpia, TDD riguroso y resiliencia táctica.</p>
