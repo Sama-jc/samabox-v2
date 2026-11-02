@@ -10,6 +10,8 @@ import { renderTaskView } from '../../src/public/js/components/task-view.js';
 import { renderSummaryView } from '../../src/public/js/components/summary-view.js';
 import { renderCalendarView } from '../../src/public/js/components/calendar-view.js';
 import { renderCalendarModal } from '../../src/public/js/components/calendar-modal.js';
+import { renderTasksKanbanView } from '../../src/public/js/components/tasks-view.js';
+import { renderNewsScreenView } from '../../src/public/js/components/news-view.js';
 import { resolveRoute, Router } from '../../src/public/js/router.js';
 
 describe('Frontend UI Components & Security Sanitization', () => {
@@ -478,6 +480,141 @@ describe('Frontend UI Components & Security Sanitization', () => {
       assert.ok(html.includes('toggle-source-enabled') || html.includes('btn-toggle-source'));
       assert.ok(html.includes('btn-sync-source') || html.includes('btn-sync'));
       assert.ok(html.includes('btn-delete-source') || html.includes('btn-delete'));
+    });
+  });
+
+  describe('renderTasksKanbanView (Interactive 3-Column Kanban Board)', () => {
+    const mockTasks = [
+      {
+        id: 't1',
+        title: 'Review EDR telemetry alerts',
+        priority: 'Alta',
+        status: 'Pendiente',
+        isFocus: true,
+        date: '2026-11-02'
+      },
+      {
+        id: 't2',
+        title: 'Perform vulnerability scanning',
+        priority: 'Media',
+        status: 'En Progreso',
+        isFocus: false,
+        date: '2026-11-02'
+      },
+      {
+        id: 't3',
+        title: 'Update perimeter firewall firmware',
+        priority: 'Baja',
+        status: 'Completada',
+        isFocus: false,
+        date: '2026-11-01'
+      }
+    ];
+
+    it('should render 3 Kanban columns: Pendiente, En Progreso, Completada with count badges', () => {
+      const html = renderTasksKanbanView(mockTasks);
+      assert.ok(html.includes('kanban-board') || html.includes('kanban-column'));
+      assert.ok(html.includes('Pendiente'));
+      assert.ok(html.includes('En Progreso'));
+      assert.ok(html.includes('Completada'));
+      assert.ok(html.includes('data-column-status="Pendiente"'));
+      assert.ok(html.includes('data-column-status="En Progreso"'));
+      assert.ok(html.includes('data-column-status="Completada"'));
+    });
+
+    it('should render draggable task cards with HTML5 draggable attribute and data-id', () => {
+      const html = renderTasksKanbanView(mockTasks);
+      assert.ok(html.includes('draggable="true"'));
+      assert.ok(html.includes('data-id="t1"'));
+      assert.ok(html.includes('Review EDR telemetry alerts'));
+    });
+
+    it('should render Daily Focus highlight and priority badge on task card', () => {
+      const html = renderTasksKanbanView(mockTasks);
+      assert.ok(html.includes('DAILY FOCUS') || html.includes('is-focus'));
+      assert.ok(html.includes('priority-Alta'));
+      assert.ok(html.includes('priority-Media'));
+      assert.ok(html.includes('btn-toggle-focus'));
+    });
+
+    it('should render accessible transition buttons for keyboard and mobile users', () => {
+      const html = renderTasksKanbanView(mockTasks);
+      assert.ok(html.includes('btn-move-status'));
+      assert.ok(html.includes('btn-delete-task'));
+    });
+
+    it('should render quick add task form', () => {
+      const html = renderTasksKanbanView(mockTasks);
+      assert.ok(html.includes('form-quick-add-task') || html.includes('btn-toggle-task-form'));
+    });
+
+    it('should display empty message when column has 0 tasks', () => {
+      const html = renderTasksKanbanView([]);
+      assert.ok(html.includes('empty-column') || html.includes('Sin tareas'));
+    });
+  });
+
+  describe('renderNewsScreenView (Dedicated Security Briefing Screen)', () => {
+    const mockBriefing = {
+      date: '2026-11-02',
+      mode: 'LLM_CLOUD',
+      items: [
+        {
+          id: 'n1',
+          title: 'Critical Zero-Day exploited in wild',
+          url: 'https://thehackernews.com/zeroday',
+          source: 'The Hacker News',
+          publishedAt: '2026-11-02T08:00:00Z',
+          summary: 'Attackers actively exploiting vulnerability before patch.',
+          commentary: 'Deploy temporary WAF mitigation rule immediately.',
+          analysisMode: 'LLM_CLOUD'
+        },
+        {
+          id: 'n2',
+          title: 'CISA adds 3 new vulnerabilities to KEV catalog',
+          url: 'https://cisa.gov/kev-update',
+          source: 'CISA Alerts',
+          publishedAt: '2026-11-02T09:00:00Z',
+          summary: 'Federal agencies mandated to patch within 21 days.',
+          commentary: 'Audit assets against CISA KEV list.',
+          analysisMode: 'HEURISTIC_LOCAL'
+        }
+      ]
+    };
+
+    it('should render search input, source filter selector and force refresh button', () => {
+      const html = renderNewsScreenView(mockBriefing);
+      assert.ok(html.includes('input-search-news'));
+      assert.ok(html.includes('select-news-source'));
+      assert.ok(html.includes('btn-force-refresh-briefing') || html.includes('btn-refresh-briefing'));
+      assert.ok(html.includes('Cloud LLM'));
+    });
+
+    it('should render full news cards with Resumen a leer and Comentarios al respecto', () => {
+      const html = renderNewsScreenView(mockBriefing);
+      assert.ok(html.includes('Critical Zero-Day exploited in wild'));
+      assert.ok(html.includes('Resumen a leer'));
+      assert.ok(html.includes('Attackers actively exploiting vulnerability before patch.'));
+      assert.ok(html.includes('Comentarios al respecto'));
+      assert.ok(html.includes('Deploy temporary WAF mitigation rule immediately.'));
+      assert.ok(html.includes('rel="noopener noreferrer"'));
+    });
+
+    it('should filter items by search query matching title or summary', () => {
+      const filtered = renderNewsScreenView(mockBriefing, { searchQuery: 'Zero-Day' });
+      assert.ok(filtered.includes('Critical Zero-Day exploited in wild'));
+      assert.ok(!filtered.includes('CISA adds 3 new vulnerabilities'));
+    });
+
+    it('should filter items by selected source', () => {
+      const filtered = renderNewsScreenView(mockBriefing, { selectedSource: 'CISA Alerts' });
+      assert.ok(filtered.includes('CISA adds 3 new vulnerabilities'));
+      assert.ok(!filtered.includes('Critical Zero-Day exploited in wild'));
+    });
+
+    it('should show empty state message when no items match filter', () => {
+      const empty = renderNewsScreenView(mockBriefing, { searchQuery: 'NonExistentCVE123' });
+      assert.ok(empty.includes('empty-state') || empty.includes('No se encontraron noticias'));
     });
   });
 });
