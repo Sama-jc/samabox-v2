@@ -7,8 +7,9 @@ export class DashboardService {
     this.taskService = taskService;
   }
 
-  async getSummary(date) {
+  async getSummary(date, { newsLimit = 3 } = {}) {
     const queryDate = date ? String(date).trim() : getTodayDateString();
+    const limit = Math.max(1, parseInt(newsLimit, 10) || 3);
 
     const [briefing, meetings, taskStats] = await Promise.all([
       this.briefingService.getBriefingByDate(queryDate),
@@ -33,16 +34,20 @@ export class DashboardService {
       }
     }
 
+    const items = briefing?.items || [];
+    const topNews = items.slice(0, limit);
+
     return {
       date: queryDate,
-      briefingCount: briefing?.items ? briefing.items.length : 0,
+      briefingCount: items.length,
       mode: briefing?.mode || 'HEURISTIC_LOCAL',
       meetingStats: {
         total: totalMeetings,
         conflictsCount,
         nextMeeting
       },
-      taskStats
+      taskStats,
+      topNews
     };
   }
 }

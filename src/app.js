@@ -6,7 +6,10 @@ import { AgendaService, NotFoundError } from './services/agenda-service.js';
 import { TaskService } from './services/task-service.js';
 import { BriefingService } from './services/briefing-service.js';
 import { DashboardService } from './services/dashboard-service.js';
+import { CalendarSourceService } from './services/calendar-source-service.js';
+import { UnifiedCalendarService } from './services/unified-calendar-service.js';
 import { ValidationError } from './domain/meeting.js';
+import { SSRFError } from './domain/ssrf-guard.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -128,6 +131,8 @@ export function createRequestHandler({
   taskService,
   briefingService,
   dashboardService,
+  calendarSourceService,
+  unifiedCalendarService,
   publicDir = defaultPublicDir,
   config = {}
 }) {
@@ -197,6 +202,69 @@ export function createRequestHandler({
         return sendNoContent(res);
       }
 
+      // Calendar Sources Routes
+      const calendarSyncMatch = pathname.match(/^\/api\/calendars\/([^/]+)\/sync$/);
+      const calendarIdMatch = pathname.match(/^\/api\/calendars\/([^/]+)$/);
+
+      // GET /api/calendars
+      if (method === 'GET' && pathname === '/api/calendars' && calendarSourceService) {
+        const sources = calendarSourceService.getSources();
+        return sendJson(res, 200, sources);
+      }
+
+      // POST /api/calendars
+      if (method === 'POST' && pathname === '/api/calendars' && calendarSourceService) {
+        const body = await readJsonBody(req);
+        const calendarSource = calendarSourceService.createSource(body);
+        return sendJson(res, 201, { calendarSource });
+      }
+
+      // POST /api/calendars/import
+      if (method === 'POST' && pathname === '/api/calendars/import' && calendarSourceService) {
+        const body = await readJsonBody(req, 5 * 1024 * 1024);
+        const result = calendarSourceService.importManualICS(body);
+        return sendJson(res, 201, result);
+      }
+
+      // POST /api/calendars/:id/sync
+      if (method === 'POST' && calendarSyncMatch && calendarSourceService) {
+        const id = decodeURIComponent(calendarSyncMatch[1]);
+        const result = await calendarSourceService.syncSource(id);
+        return sendJson(res, 200, result);
+      }
+
+      // GET /api/calendars/:id
+      if (method === 'GET' && calendarIdMatch && calendarSourceService) {
+        const id = decodeURIComponent(calendarIdMatch[1]);
+        const calendarSource = calendarSourceService.getSourceById(id);
+        if (!calendarSource) {
+          throw new NotFoundError(`Calendar source "${id}" not found.`);
+        }
+        return sendJson(res, 200, { calendarSource });
+      }
+
+      // PATCH /api/calendars/:id
+      if (method === 'PATCH' && calendarIdMatch && calendarSourceService) {
+        const id = decodeURIComponent(calendarIdMatch[1]);
+        const body = await readJsonBody(req);
+        const calendarSource = calendarSourceService.updateSource(id, body);
+        return sendJson(res, 200, { calendarSource });
+      }
+
+      // DELETE /api/calendars/:id
+      if (method === 'DELETE' && calendarIdMatch && calendarSourceService) {
+        const id = decodeURIComponent(calendarIdMatch[1]);
+        calendarSourceService.deleteSource(id);
+        return sendNoContent(res);
+      }
+
+      // Unified Calendar Route: GET /api/calendar/unified?date=YYYY-MM-DD
+      if (method === 'GET' && pathname === '/api/calendar/unified' && unifiedCalendarService) {
+        const date = url.searchParams.get('date') || undefined;
+        const unified = unifiedCalendarService.getUnifiedCalendar(date);
+        return sendJson(res, 200, unified);
+      }
+
       // Task Routes
       const taskIdMatch = pathname.match(/^\/api\/tasks\/([^/]+)$/);
 
@@ -255,7 +323,8 @@ export function createRequestHandler({
       // GET /api/dashboard/summary
       if (method === 'GET' && pathname === '/api/dashboard/summary') {
         const date = url.searchParams.get('date') || undefined;
-        const summary = await dashboardService.getSummary(date);
+        const newsLimit = url.searchParams.get('newsLimit') || undefined;
+        const summary = await dashboardService.getSummary(date, { newsLimit });
         return sendJson(res, 200, summary);
       }
 
@@ -274,6 +343,9 @@ export function createRequestHandler({
       if (err instanceof ValidationError) {
         return sendJson(res, 400, { error: err.message });
       }
+      if (err instanceof SSRFError) {
+        return sendJson(res, 400, { error: err.message });
+      }
       if (err instanceof NotFoundError) {
         return sendJson(res, 404, { error: err.message });
       }
@@ -288,11 +360,19 @@ export function createApp({
   config = {},
   briefingService,
   dashboardService,
+  calendarSourceService,
+  unifiedCalendarService,
   publicDir
 } = {}) {
   const agendaService = new AgendaService(db);
   const taskService = new TaskService(db);
   const resolvedBriefingService = briefingService || new BriefingService({ db });
+  const resolvedCalendarSourceService = calendarSourceService || new CalendarSourceService(db);
+  const resolvedUnifiedCalendarService = unifiedCalendarService || new UnifiedCalendarService({
+    db,
+    agendaService,
+    taskService
+  });
   const resolvedDashboardService = dashboardService || new DashboardService({
     briefingService: resolvedBriefingService,
     agendaService,
@@ -307,6 +387,8 @@ export function createApp({
     taskService,
     briefingService: resolvedBriefingService,
     dashboardService: resolvedDashboardService,
+    calendarSourceService: resolvedCalendarSourceService,
+    unifiedCalendarService: resolvedUnifiedCalendarService,
     publicDir: resolvedPublicDir,
     config
   });
@@ -316,5 +398,7 @@ export function createApp({
   server.taskService = taskService;
   server.briefingService = resolvedBriefingService;
   server.dashboardService = resolvedDashboardService;
+  server.calendarSourceService = resolvedCalendarSourceService;
+  server.unifiedCalendarService = resolvedUnifiedCalendarService;
   return server;
 }
