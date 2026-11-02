@@ -23,6 +23,10 @@ function mapRowToMeeting(row) {
     date: row.date,
     location: row.location || '',
     notes: row.notes || '',
+    sourceId: row.source_id || null,
+    entryType: row.entry_type || 'meeting',
+    allDay: row.all_day !== undefined ? row.all_day : 0,
+    externalUid: row.external_uid || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -39,8 +43,8 @@ export class AgendaService {
     const now = new Date().toISOString();
 
     const stmt = this.db.prepare(`
-      INSERT INTO meetings (id, title, start_time, end_time, date, location, notes, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO meetings (id, title, start_time, end_time, date, location, notes, source_id, entry_type, all_day, external_uid, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -51,6 +55,10 @@ export class AgendaService {
       validated.date,
       validated.location,
       validated.notes,
+      validated.sourceId,
+      validated.entryType,
+      validated.allDay,
+      validated.externalUid,
       now,
       now
     );
@@ -89,7 +97,11 @@ export class AgendaService {
       endTime: data.endTime !== undefined ? data.endTime : existing.endTime,
       date: data.date !== undefined ? data.date : existing.date,
       location: data.location !== undefined ? data.location : existing.location,
-      notes: data.notes !== undefined ? data.notes : existing.notes
+      notes: data.notes !== undefined ? data.notes : existing.notes,
+      sourceId: data.sourceId !== undefined ? data.sourceId : (data.source_id !== undefined ? data.source_id : existing.sourceId),
+      entryType: data.entryType !== undefined ? data.entryType : (data.entry_type !== undefined ? data.entry_type : existing.entryType),
+      allDay: data.allDay !== undefined ? data.allDay : (data.all_day !== undefined ? data.all_day : existing.allDay),
+      externalUid: data.externalUid !== undefined ? data.externalUid : (data.external_uid !== undefined ? data.external_uid : existing.externalUid)
     };
 
     const validated = validateMeetingData(merged);
@@ -97,7 +109,7 @@ export class AgendaService {
 
     const stmt = this.db.prepare(`
       UPDATE meetings
-      SET title = ?, start_time = ?, end_time = ?, date = ?, location = ?, notes = ?, updated_at = ?
+      SET title = ?, start_time = ?, end_time = ?, date = ?, location = ?, notes = ?, source_id = ?, entry_type = ?, all_day = ?, external_uid = ?, updated_at = ?
       WHERE id = ?
     `);
 
@@ -108,6 +120,10 @@ export class AgendaService {
       validated.date,
       validated.location,
       validated.notes,
+      validated.sourceId,
+      validated.entryType,
+      validated.allDay,
+      validated.externalUid,
       now,
       id
     );
