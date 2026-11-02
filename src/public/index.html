@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Samabox — Morning Kickoff Dashboard</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22><text y=%2226%22 font-size=%2224%22>🛡️</text></svg>">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-brand">
+      <span class="brand-icon">🛡️</span>
+      <div>
+        <h1 class="brand-title">Samabox</h1>
+        <p class="brand-subtitle">Morning Kickoff Dashboard & Tactical Intelligence</p>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <div class="control-group">
+        <label for="dashboard-date" class="control-label">Fecha:</label>
+        <input type="date" id="dashboard-date" class="input-date">
+      </div>
+      <button id="btn-refresh-all" class="btn btn-secondary" title="Recargar todo el día">
+        🔄 Refrescar Día
+      </button>
+      <button id="btn-toggle-theme" class="btn btn-icon" title="Cambiar Tema Claro/Oscuro">
+        🌙
+      </button>
+    </div>
+  </header>
+
+  <!-- Morning Kickoff Summary Bar -->
+  <section id="morning-kickoff-bar" class="kickoff-summary-bar">
+    <div class="metric-card metric-briefing">
+      <div class="metric-icon">📰</div>
+      <div class="metric-content">
+        <span class="metric-label">Seguridad de la Información</span>
+        <span id="metric-briefing-count" class="metric-value">Cargando...</span>
+        <span id="metric-ai-mode" class="metric-badge badge-neutral">Modo: ...</span>
+      </div>
+    </div>
+
+    <div class="metric-card metric-meetings">
+      <div class="metric-icon">📅</div>
+      <div class="metric-content">
+        <span class="metric-label">Compromisos de Agenda</span>
+        <span id="metric-meetings-count" class="metric-value">Cargando...</span>
+        <span id="metric-conflicts-badge" class="metric-badge badge-success">Sin Solapamientos</span>
+      </div>
+    </div>
+
+    <div class="metric-card metric-tasks">
+      <div class="metric-icon">✅</div>
+      <div class="metric-content">
+        <span class="metric-label">Progreso de Tareas</span>
+        <span id="metric-tasks-progress" class="metric-value">Cargando...</span>
+        <div class="progress-bar-container">
+          <div id="metric-progress-fill" class="progress-bar-fill" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3-Column Main Dashboard Grid -->
+  <main class="dashboard-grid">
+    <!-- Columna 1: Daily Security Briefing -->
+    <section class="dashboard-column column-briefing">
+      <div class="column-header">
+        <div class="column-title-group">
+          <h2>Daily Security Briefing</h2>
+          <span class="column-badge" id="briefing-badge-count">3 noticias</span>
+        </div>
+        <button id="btn-refresh-briefing" class="btn btn-sm btn-outline">
+          ⚡ Actualizar Briefing
+        </button>
+      </div>
+
+      <div id="briefing-container" class="column-content">
+        <div class="loading-state">Cargando inteligencia de seguridad...</div>
+      </div>
+    </section>
+
+    <!-- Columna 2: Agenda de Reuniones -->
+    <section class="dashboard-column column-agenda">
+      <div class="column-header">
+        <div class="column-title-group">
+          <h2>Agenda del Día</h2>
+          <span class="column-badge" id="agenda-badge-count">0 reuniones</span>
+        </div>
+        <button id="btn-toggle-meeting-form" class="btn btn-sm btn-primary">
+          + Agendar
+        </button>
+      </div>
+
+      <!-- Formulario para agregar reunión -->
+      <form id="form-create-meeting" class="card form-panel hidden">
+        <h3 class="form-title">Nueva Reunión</h3>
+        <div class="form-group">
+          <label for="meeting-title">Título *</label>
+          <input type="text" id="meeting-title" required placeholder="ej. Daily Standup">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="meeting-start">Inicio * (HH:MM)</label>
+            <input type="time" id="meeting-start" required>
+          </div>
+          <div class="form-group">
+            <label for="meeting-end">Fin * (HH:MM)</label>
+            <input type="time" id="meeting-end" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="meeting-location">Ubicación / Link</label>
+          <input type="text" id="meeting-location" placeholder="ej. Sala 3 / meet.google.com/xyz">
+        </div>
+        <div class="form-group">
+          <label for="meeting-notes">Notas</label>
+          <input type="text" id="meeting-notes" placeholder="Notas adicionales">
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-sm btn-success">Guardar</button>
+          <button type="button" id="btn-cancel-meeting" class="btn btn-sm btn-secondary">Cancelar</button>
+        </div>
+      </form>
+
+      <div id="agenda-container" class="column-content">
+        <div class="loading-state">Cargando compromisos...</div>
+      </div>
+    </section>
+
+    <!-- Columna 3: Tareas y Pendientes Diarios -->
+    <section class="dashboard-column column-tasks">
+      <div class="column-header">
+        <div class="column-title-group">
+          <h2>Tareas y Daily Focus</h2>
+          <span class="column-badge" id="tasks-badge-count">0 tareas</span>
+        </div>
+        <button id="btn-toggle-task-form" class="btn btn-sm btn-primary">
+          + Nueva Tarea
+        </button>
+      </div>
+
+      <!-- Filtros de Tareas -->
+      <div class="task-filters">
+        <button class="filter-tab active" data-filter="Todas">Todas</button>
+        <button class="filter-tab" data-filter="Activas">Activas</button>
+        <button class="filter-tab" data-filter="Completadas">Completadas</button>
+        <button class="filter-tab" data-filter="Focus">⭐ Focus</button>
+      </div>
+
+      <!-- Formulario para agregar tarea -->
+      <form id="form-create-task" class="card form-panel hidden">
+        <h3 class="form-title">Nueva Tarea</h3>
+        <div class="form-group">
+          <label for="task-title">Título *</label>
+          <input type="text" id="task-title" required placeholder="ej. Parchear CVE-2026-X en firewall">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="task-priority">Prioridad *</label>
+            <select id="task-priority" required>
+              <option value="Alta">Alta</option>
+              <option value="Media" selected>Media</option>
+              <option value="Baja">Baja</option>
+            </select>
+          </div>
+          <div class="form-group checkbox-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="task-focus">
+              ⭐ Enfoque del Día
+            </label>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-sm btn-success">Crear Tarea</button>
+          <button type="button" id="btn-cancel-task" class="btn btn-sm btn-secondary">Cancelar</button>
+        </div>
+      </form>
+
+      <div id="tasks-container" class="column-content">
+        <div class="loading-state">Cargando tareas...</div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Samabox &copy; 2026 — Morning Kickoff Dashboard. Arquitectura limpia, TDD riguroso y resiliencia táctica.</p>
+  </footer>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

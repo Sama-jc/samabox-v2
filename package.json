@@ -1,0 +1,19 @@
+{
+  "name": "samabox",
+  "version": "0.1.0",
+  "description": "Morning Kickoff Dashboard for Tech Leads and SecOps",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --no-warnings --test 'tests/**/*.test.js'"
+  },
+  "keywords": [
+    "dashboard",
+    "security-briefing",
+    "agenda",
+    "tasks"
+  ],
+  "author": "",
+  "license": "MIT"
+}
