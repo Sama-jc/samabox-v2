@@ -6,6 +6,7 @@ export function createTestDatabase() {
 
 export function clearDatabase(db) {
   db.exec('DELETE FROM meetings;');
+  db.exec('DELETE FROM calendar_sources;');
   db.exec('DELETE FROM tasks;');
   db.exec('DELETE FROM briefing_items;');
 }
