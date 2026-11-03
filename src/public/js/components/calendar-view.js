@@ -8,9 +8,9 @@ import { escapeHtml } from './briefing-view.js';
 export function renderCalendarView(data = {}) {
   const date = data.date || new Date().toISOString().slice(0, 10);
   const meetings = Array.isArray(data.meetings) ? data.meetings : [];
-  const allDayEvents = Array.isArray(data.allDayEvents) ? data.allDayEvents : [];
-  const projectedTasks = Array.isArray(data.projectedTasks) ? data.projectedTasks : [];
-  const calendarSources = Array.isArray(data.calendarSources) ? data.calendarSources : [];
+  const allDayEvents = Array.isArray(data.allDayEvents) ? data.allDayEvents : (Array.isArray(data.reminders) ? data.reminders : []);
+  const projectedTasks = Array.isArray(data.projectedTasks) ? data.projectedTasks : (Array.isArray(data.tasks) ? data.tasks : []);
+  const calendarSources = Array.isArray(data.calendarSources) ? data.calendarSources : (Array.isArray(data.sources) ? data.sources : []);
 
   const conflictsCount = meetings.filter((m) => m.hasConflict).length;
 

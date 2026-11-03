@@ -5,6 +5,8 @@ import { renderTaskView } from './components/task-view.js';
 import { renderSummaryView } from './components/summary-view.js';
 import { renderCalendarView } from './components/calendar-view.js';
 import { renderCalendarModal } from './components/calendar-modal.js';
+import { renderTasksKanbanView } from './components/tasks-view.js';
+import { renderNewsScreenView } from './components/news-view.js';
 import { Router } from './router.js';
 
 // Application State
@@ -19,6 +21,8 @@ const state = {
   unifiedCalendar: null,
   calendarSources: [],
   newsLimit: 3,
+  newsSearchQuery: '',
+  newsSelectedSource: 'Todas',
   currentRoute: 'summary'
 };
 
@@ -134,29 +138,193 @@ export function renderActiveView(route = 'summary') {
     container.innerHTML = renderCalendarView(unified);
     setupCalendarControls();
   } else if (route === 'tasks') {
-    container.innerHTML = `
-      <div class="page-container view-tasks-page">
-        <div class="view-page-header">
-          <h2>📋 Planner de Tareas</h2>
-          <p class="text-muted">Organización táctica y seguimiento de prioridades</p>
-        </div>
-        <div id="spa-tasks-container">
-          ${renderTaskView(state.tasks, state.activeTaskFilter)}
-        </div>
-      </div>
-    `;
+    container.innerHTML = renderTasksKanbanView(state.tasks, state.activeTaskFilter);
+    setupKanbanControls();
   } else if (route === 'news') {
-    container.innerHTML = `
-      <div class="page-container view-news-page">
-        <div class="view-page-header">
-          <h2>🛡️ Daily Security Briefing</h2>
-          <p class="text-muted">Inteligencia de ciberseguridad consolidada</p>
-        </div>
-        <div id="spa-briefing-container">
-          ${renderBriefingView(state.briefing)}
-        </div>
-      </div>
-    `;
+    container.innerHTML = renderNewsScreenView(state.briefing, {
+      searchQuery: state.newsSearchQuery,
+      selectedSource: state.newsSelectedSource
+    });
+    setupNewsScreenControls();
+  }
+}
+
+export function setupKanbanControls() {
+  const container = document.getElementById('view-container');
+  if (!container) return;
+
+  // Toggle quick add task form
+  const toggleBtn = container.querySelector('#btn-toggle-task-form');
+  const form = container.querySelector('#form-quick-add-task');
+  const cancelBtn = container.querySelector('#btn-cancel-task');
+
+  if (toggleBtn && form) {
+    toggleBtn.addEventListener('click', () => {
+      form.classList.toggle('hidden');
+    });
+  }
+
+  if (cancelBtn && form) {
+    cancelBtn.addEventListener('click', () => {
+      form.classList.add('hidden');
+      form.reset();
+    });
+  }
+
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = form.querySelector('#task-title')?.value;
+      const priority = form.querySelector('#task-priority')?.value || 'Media';
+      const date = form.querySelector('#task-date')?.value || state.currentDate;
+      const isFocus = Boolean(form.querySelector('#task-focus')?.checked);
+
+      try {
+        await api.createTask({
+          title,
+          priority,
+          date,
+          isFocus
+        });
+        form.reset();
+        form.classList.add('hidden');
+        await loadDashboard();
+      } catch (err) {
+        alert('Error al crear tarea: ' + err.message);
+      }
+    });
+  }
+
+  // HTML5 Drag & Drop setup
+  const cards = container.querySelectorAll('.kanban-task-card');
+  cards.forEach(card => {
+    card.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', card.dataset.id);
+      card.classList.add('dragging');
+    });
+
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+    });
+  });
+
+  const dropzones = container.querySelectorAll('.kanban-dropzone');
+  dropzones.forEach(zone => {
+    zone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      zone.classList.add('drag-over');
+    });
+
+    zone.addEventListener('dragleave', () => {
+      zone.classList.remove('drag-over');
+    });
+
+    zone.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      const taskId = e.dataTransfer.getData('text/plain');
+      const targetStatus = zone.dataset.columnStatus;
+      if (!taskId || !targetStatus) return;
+
+      try {
+        await api.updateTask(taskId, { status: targetStatus });
+        await loadDashboard();
+      } catch (err) {
+        alert('Error al mover tarea: ' + err.message);
+      }
+    });
+  });
+
+  // Accessible buttons delegation (move status, toggle focus, delete)
+  container.addEventListener('click', async (e) => {
+    const moveBtn = e.target.closest('.btn-move-status');
+    if (moveBtn) {
+      const id = moveBtn.dataset.id;
+      const newStatus = moveBtn.dataset.status;
+      try {
+        await api.updateTask(id, { status: newStatus });
+        await loadDashboard();
+      } catch (err) {
+        alert('Error al actualizar tarea: ' + err.message);
+      }
+      return;
+    }
+
+    const focusBtn = e.target.closest('.btn-toggle-focus');
+    if (focusBtn) {
+      const id = focusBtn.dataset.id;
+      const newFocus = focusBtn.dataset.focus === 'true';
+      try {
+        await api.updateTask(id, { isFocus: newFocus });
+        await loadDashboard();
+      } catch (err) {
+        alert('Error al alternar Daily Focus: ' + err.message);
+      }
+      return;
+    }
+
+    const deleteBtn = e.target.closest('.btn-delete-task');
+    if (deleteBtn) {
+      const id = deleteBtn.dataset.id;
+      if (confirm('¿Eliminar esta tarea?')) {
+        try {
+          await api.deleteTask(id);
+          await loadDashboard();
+        } catch (err) {
+          alert('Error al eliminar tarea: ' + err.message);
+        }
+      }
+    }
+  });
+}
+
+export function setupNewsScreenControls() {
+  const container = document.getElementById('view-container');
+  if (!container) return;
+
+  const searchInput = container.querySelector('#input-search-news');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      state.newsSearchQuery = e.target.value;
+      container.innerHTML = renderNewsScreenView(state.briefing, {
+        searchQuery: state.newsSearchQuery,
+        selectedSource: state.newsSelectedSource
+      });
+      setupNewsScreenControls();
+      const updatedInput = container.querySelector('#input-search-news');
+      if (updatedInput) {
+        updatedInput.focus();
+        updatedInput.setSelectionRange(updatedInput.value.length, updatedInput.value.length);
+      }
+    });
+  }
+
+  const sourceSelect = container.querySelector('#select-news-source');
+  if (sourceSelect) {
+    sourceSelect.addEventListener('change', (e) => {
+      state.newsSelectedSource = e.target.value;
+      container.innerHTML = renderNewsScreenView(state.briefing, {
+        searchQuery: state.newsSearchQuery,
+        selectedSource: state.newsSelectedSource
+      });
+      setupNewsScreenControls();
+    });
+  }
+
+  const refreshBtn = container.querySelector('#btn-force-refresh-briefing');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async () => {
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = 'Actualizando inteligencia...';
+      try {
+        state.briefing = await api.refreshBriefing(state.currentDate);
+        await loadDashboard();
+      } catch (err) {
+        alert('Error al refrescar briefing: ' + err.message);
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = '⚡ Refrescar Inteligencia';
+      }
+    });
   }
 }
 
