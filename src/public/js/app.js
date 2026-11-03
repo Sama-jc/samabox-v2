@@ -3,6 +3,8 @@ import { renderBriefingView } from './components/briefing-view.js';
 import { renderAgendaView } from './components/agenda-view.js';
 import { renderTaskView } from './components/task-view.js';
 import { renderSummaryView } from './components/summary-view.js';
+import { renderCalendarView } from './components/calendar-view.js';
+import { renderCalendarModal } from './components/calendar-modal.js';
 import { Router } from './router.js';
 
 // Application State
@@ -14,6 +16,8 @@ const state = {
   meetings: [],
   tasks: [],
   summary: null,
+  unifiedCalendar: null,
+  calendarSources: [],
   newsLimit: 3,
   currentRoute: 'summary'
 };
@@ -120,17 +124,15 @@ export function renderActiveView(route = 'summary') {
       });
     }
   } else if (route === 'calendar') {
-    container.innerHTML = `
-      <div class="page-container view-calendar-page">
-        <div class="view-page-header">
-          <h2>📅 Calendario de Compromisos</h2>
-          <p class="text-muted">Reuniones y eventos para ${state.currentDate}</p>
-        </div>
-        <div id="spa-agenda-container">
-          ${renderAgendaView(state.meetings)}
-        </div>
-      </div>
-    `;
+    const unified = state.unifiedCalendar || {
+      date: state.currentDate,
+      meetings: state.meetings,
+      allDayEvents: [],
+      projectedTasks: state.tasks,
+      calendarSources: state.calendarSources
+    };
+    container.innerHTML = renderCalendarView(unified);
+    setupCalendarControls();
   } else if (route === 'tasks') {
     container.innerHTML = `
       <div class="page-container view-tasks-page">
@@ -158,20 +160,264 @@ export function renderActiveView(route = 'summary') {
   }
 }
 
+export function changeCurrentDate(newDate) {
+  state.currentDate = newDate;
+  const topDateInput = document.getElementById('dashboard-date');
+  if (topDateInput) topDateInput.value = newDate;
+  loadDashboard();
+}
+
+export function setupCalendarControls() {
+  const prevBtn = document.getElementById('btn-calendar-prev');
+  const nextBtn = document.getElementById('btn-calendar-next');
+  const todayBtn = document.getElementById('btn-calendar-today');
+  const dateInput = document.getElementById('calendar-date-input');
+
+  if (prevBtn) {
+    prevBtn.addEventListener('click', () => {
+      const d = new Date(state.currentDate + 'T00:00:00');
+      d.setDate(d.getDate() - 1);
+      changeCurrentDate(d.toISOString().slice(0, 10));
+    });
+  }
+
+  if (nextBtn) {
+    nextBtn.addEventListener('click', () => {
+      const d = new Date(state.currentDate + 'T00:00:00');
+      d.setDate(d.getDate() + 1);
+      changeCurrentDate(d.toISOString().slice(0, 10));
+    });
+  }
+
+  if (todayBtn) {
+    todayBtn.addEventListener('click', () => {
+      changeCurrentDate(new Date().toISOString().slice(0, 10));
+    });
+  }
+
+  if (dateInput) {
+    dateInput.addEventListener('change', (e) => {
+      changeCurrentDate(e.target.value);
+    });
+  }
+
+  const manageBtn = document.getElementById('btn-manage-calendars');
+  if (manageBtn) {
+    manageBtn.addEventListener('click', () => {
+      openCalendarAccountsModal();
+    });
+  }
+
+  // Toggle & create meeting form
+  const toggleBtn = document.getElementById('btn-toggle-meeting-form');
+  const form = document.getElementById('form-create-meeting');
+  const cancelBtn = document.getElementById('btn-cancel-meeting');
+
+  if (toggleBtn && form) {
+    toggleBtn.addEventListener('click', () => {
+      form.classList.toggle('hidden');
+    });
+  }
+
+  if (cancelBtn && form) {
+    cancelBtn.addEventListener('click', () => {
+      form.classList.add('hidden');
+      form.reset();
+    });
+  }
+
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('meeting-title')?.value;
+      const entryType = document.getElementById('meeting-entry-type')?.value || 'meeting';
+      const startTime = entryType === 'reminder' ? '00:00' : (document.getElementById('meeting-start')?.value || '09:00');
+      const endTime = entryType === 'reminder' ? '23:59' : (document.getElementById('meeting-end')?.value || '10:00');
+      const allDay = entryType === 'reminder';
+      const location = document.getElementById('meeting-location')?.value || '';
+      const notes = document.getElementById('meeting-notes')?.value || '';
+
+      try {
+        await api.createMeeting({
+          title,
+          startTime,
+          endTime,
+          location,
+          notes,
+          date: state.currentDate,
+          entryType,
+          allDay
+        });
+        form.reset();
+        form.classList.add('hidden');
+        await loadDashboard();
+      } catch (err) {
+        alert('Error al agendar compromiso: ' + err.message);
+      }
+    });
+  }
+
+  // Projected Tasks status switcher delegation
+  const viewContainer = document.getElementById('view-container');
+  if (viewContainer) {
+    viewContainer.addEventListener('change', async (e) => {
+      if (e.target.classList.contains('select-projected-task-status')) {
+        const id = e.target.dataset.id;
+        const newStatus = e.target.value;
+        try {
+          await api.updateTask(id, { status: newStatus });
+          await loadDashboard();
+        } catch (err) {
+          alert('Error al actualizar tarea: ' + err.message);
+        }
+      }
+    });
+
+    viewContainer.addEventListener('click', async (e) => {
+      const deleteMeetingBtn = e.target.closest('.btn-delete-meeting');
+      if (deleteMeetingBtn) {
+        const id = deleteMeetingBtn.dataset.id;
+        if (confirm('¿Eliminar esta reunión?')) {
+          try {
+            await api.deleteMeeting(id);
+            await loadDashboard();
+          } catch (err) {
+            alert('Error al eliminar reunión: ' + err.message);
+          }
+        }
+      }
+    });
+  }
+}
+
+export async function openCalendarAccountsModal() {
+  let modalEl = document.getElementById('calendar-modal-container');
+  if (!modalEl) {
+    modalEl = document.createElement('div');
+    modalEl.id = 'calendar-modal-container';
+    document.body.appendChild(modalEl);
+  }
+
+  const sources = await api.getCalendarSources().catch(() => []);
+  state.calendarSources = sources;
+  modalEl.innerHTML = renderCalendarModal(sources);
+
+  const closeModal = () => {
+    modalEl.innerHTML = '';
+  };
+
+  const closeBtn = modalEl.querySelector('#btn-close-modal');
+  const doneBtn = modalEl.querySelector('#btn-modal-done');
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  if (doneBtn) doneBtn.addEventListener('click', closeModal);
+
+  // Form: add subscription
+  const subForm = modalEl.querySelector('#form-add-subscription');
+  if (subForm) {
+    subForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = modalEl.querySelector('#input-sub-name')?.value?.trim();
+      const url = modalEl.querySelector('#input-sub-url')?.value?.trim();
+      const color = modalEl.querySelector('#input-sub-color')?.value || '#ea4335';
+      try {
+        await api.createCalendarSource({ name, url, color, type: 'subscription' });
+        await loadDashboard();
+        await openCalendarAccountsModal();
+      } catch (err) {
+        alert('Error al agregar calendario: ' + err.message);
+      }
+    });
+  }
+
+  // Form: import offline .ics
+  const importForm = modalEl.querySelector('#form-import-ics');
+  if (importForm) {
+    importForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = modalEl.querySelector('#input-import-name')?.value?.trim();
+      const color = modalEl.querySelector('#input-import-color')?.value || '#8250df';
+      const fileInput = modalEl.querySelector('#input-ics-file');
+      const file = fileInput?.files?.[0];
+      if (!file) {
+        alert('Por favor selecciona un archivo .ics');
+        return;
+      }
+      try {
+        const icsContent = await file.text();
+        await api.importCalendar({ name, color, icsContent });
+        await loadDashboard();
+        await openCalendarAccountsModal();
+      } catch (err) {
+        alert('Error al importar archivo .ics: ' + err.message);
+      }
+    });
+  }
+
+  // Sources list actions delegation
+  const sourcesListEl = modalEl.querySelector('#calendar-sources-list');
+  if (sourcesListEl) {
+    sourcesListEl.addEventListener('change', async (e) => {
+      if (e.target.classList.contains('toggle-source-enabled')) {
+        const id = e.target.dataset.id;
+        const isEnabled = e.target.checked;
+        try {
+          await api.updateCalendarSource(id, { is_enabled: isEnabled });
+          await loadDashboard();
+        } catch (err) {
+          alert('Error al actualizar fuente: ' + err.message);
+        }
+      }
+    });
+
+    sourcesListEl.addEventListener('click', async (e) => {
+      const syncBtn = e.target.closest('.btn-sync-source');
+      if (syncBtn) {
+        const id = syncBtn.dataset.id;
+        syncBtn.textContent = '⏳';
+        try {
+          await api.syncCalendarSource(id);
+          await loadDashboard();
+          await openCalendarAccountsModal();
+        } catch (err) {
+          alert('Error de sincronización: ' + err.message);
+          await openCalendarAccountsModal();
+        }
+        return;
+      }
+
+      const deleteBtn = e.target.closest('.btn-delete-source');
+      if (deleteBtn) {
+        const id = deleteBtn.dataset.id;
+        if (confirm('¿Eliminar este calendario y sus eventos importados?')) {
+          try {
+            await api.deleteCalendarSource(id);
+            await loadDashboard();
+            await openCalendarAccountsModal();
+          } catch (err) {
+            alert('Error al eliminar fuente: ' + err.message);
+          }
+        }
+      }
+    });
+  }
+}
+
 // Load all dashboard components concurrently
 export async function loadDashboard() {
   try {
-    const [summary, briefing, meetings, tasks] = await Promise.all([
+    const [summary, briefing, meetings, tasks, unifiedCalendar] = await Promise.all([
       api.getDashboardSummary(state.currentDate, { newsLimit: state.newsLimit }).catch(() => null),
       api.getBriefing(state.currentDate).catch(() => ({ items: [], mode: 'HEURISTIC_LOCAL' })),
       api.getMeetings(state.currentDate).catch(() => []),
-      api.getTasks(state.currentDate).catch(() => [])
+      api.getTasks(state.currentDate).catch(() => []),
+      api.getUnifiedCalendar(state.currentDate).catch(() => null)
     ]);
 
     state.summary = summary;
     state.briefing = briefing;
     state.meetings = meetings;
     state.tasks = tasks;
+    state.unifiedCalendar = unifiedCalendar;
 
     updateSummaryBar();
     updateBriefingColumn();

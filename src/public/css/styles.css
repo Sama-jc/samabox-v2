@@ -947,3 +947,288 @@ body {
   font-size: 0.85rem;
   color: var(--text-secondary);
 }
+
+/* ==========================================================================
+   Dedicated Calendar Screen (V2 - Issue #4)
+   ========================================================================== */
+.calendar-screen-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.calendar-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  background-color: var(--bg-card);
+  padding: 0.75rem 1.25rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.date-navigator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.calendar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.calendar-screen-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 1024px) {
+  .calendar-screen-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.calendar-main-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.calendar-side-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-section {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.calendar-section .section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.calendar-section .section-header h3 {
+  font-size: 1.05rem;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.calendar-section .section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.calendar-section .section-footer {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.calendar-item-card {
+  padding: 0.85rem 1rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  transition: all 0.15s ease-in-out;
+}
+
+.calendar-item-card:hover {
+  background-color: var(--bg-card-hover);
+  border-color: var(--text-secondary);
+}
+
+.calendar-item-card.has-conflict {
+  border-color: var(--accent-red) !important;
+  background-color: rgba(248, 81, 73, 0.08);
+}
+
+.calendar-item-card .item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.calendar-item-card .item-time-badge {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent-cyan);
+}
+
+.source-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-sm);
+}
+
+.badge-external {
+  font-size: 0.7rem;
+  background-color: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-sm);
+}
+
+.conflict-alert {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent-red);
+  background-color: rgba(248, 81, 73, 0.15);
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  display: inline-block;
+  margin-top: 0.2rem;
+}
+
+.calendar-projected-task-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  gap: 0.5rem;
+}
+
+.calendar-projected-task-card .task-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.task-completed-text {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Calendar Accounts Manager Modal (V2 - Issue #4)
+   ========================================================================== */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.modal-card {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  width: 90%;
+  max-width: 650px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+}
+
+.modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.modal-title-group h2 {
+  font-size: 1.15rem;
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 1.25rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+}
+
+.details-summary {
+  cursor: pointer;
+  padding: 0.5rem 0;
+  color: var(--text-primary);
+  font-size: 0.92rem;
+}
+
+.calendar-sources-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.calendar-source-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.65rem 0.85rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.calendar-source-item .source-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.calendar-source-item .source-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.switch-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
