@@ -23,9 +23,57 @@ export async function apiRequest(endpoint, options = {}) {
 
 export const api = {
   // Dashboard Summary
-  async getDashboardSummary(date) {
-    const url = date ? `/api/dashboard/summary?date=${encodeURIComponent(date)}` : '/api/dashboard/summary';
+  async getDashboardSummary(date, { newsLimit } = {}) {
+    const params = new URLSearchParams();
+    if (date) params.set('date', date);
+    if (newsLimit !== undefined) params.set('newsLimit', String(newsLimit));
+    const qs = params.toString();
+    const url = qs ? `/api/dashboard/summary?${qs}` : '/api/dashboard/summary';
     return apiRequest(url);
+  },
+
+  // Unified Calendar (V2)
+  async getUnifiedCalendar(date) {
+    const url = date ? `/api/calendar/unified?date=${encodeURIComponent(date)}` : '/api/calendar/unified';
+    return apiRequest(url);
+  },
+
+  // Calendar Sources (V2)
+  async getCalendarSources() {
+    return apiRequest('/api/calendars');
+  },
+
+  async createCalendarSource(sourceData) {
+    return apiRequest('/api/calendars', {
+      method: 'POST',
+      body: JSON.stringify(sourceData)
+    });
+  },
+
+  async updateCalendarSource(id, patchData) {
+    return apiRequest(`/api/calendars/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patchData)
+    });
+  },
+
+  async deleteCalendarSource(id) {
+    return apiRequest(`/api/calendars/${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async syncCalendarSource(id) {
+    return apiRequest(`/api/calendars/${encodeURIComponent(id)}/sync`, {
+      method: 'POST'
+    });
+  },
+
+  async importCalendar(importData) {
+    return apiRequest('/api/calendars/import', {
+      method: 'POST',
+      body: JSON.stringify(importData)
+    });
   },
 
   // Daily Security Briefing
