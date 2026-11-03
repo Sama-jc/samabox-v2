@@ -201,5 +201,101 @@ describe('Meeting Domain Model', () => {
       assert.equal(result[0].id, 'm1');
       assert.equal(result[1].id, 'm2');
     });
+
+    it('should not mark all-day events or reminders as conflicting with regular meetings', () => {
+      const events = [
+        { id: 'm1', title: 'Morning Standup', startTime: '09:00', endTime: '10:00', date: '2026-11-02', allDay: 0, entryType: 'meeting' },
+        { id: 'r1', title: 'All Day Workshop', startTime: '00:00', endTime: '23:59', date: '2026-11-02', allDay: 1, entryType: 'reminder' },
+        { id: 'r2', title: 'Reminder Note', startTime: '00:00', endTime: '23:59', date: '2026-11-02', allDay: 0, entryType: 'reminder' }
+      ];
+
+      const result = detectMeetingConflicts(events);
+      for (const item of result) {
+        assert.equal(item.hasConflict, false, `Item ${item.id} should not have conflict`);
+        assert.deepEqual(item.conflictingIds, []);
+      }
+    });
+  });
+
+  describe('validateMeetingData V2 Extensions (Issue #1)', () => {
+    it('should populate default V2 attributes (entryType: meeting, allDay: 0, sourceId: null, externalUid: null)', () => {
+      const result = validateMeetingData({
+        title: 'Tech Sync',
+        startTime: '10:00',
+        endTime: '11:00',
+        date: '2026-11-02'
+      });
+
+      assert.equal(result.entryType, 'meeting');
+      assert.equal(result.allDay, 0);
+      assert.equal(result.sourceId, null);
+      assert.equal(result.externalUid, null);
+    });
+
+    it('should support allDay: 1 or allDay: true and default startTime/endTime to 00:00/23:59 if omitted', () => {
+      const result = validateMeetingData({
+        title: 'Security Awareness Day',
+        date: '2026-11-02',
+        allDay: true
+      });
+
+      assert.equal(result.allDay, 1);
+      assert.equal(result.startTime, '00:00');
+      assert.equal(result.endTime, '23:59');
+      assert.equal(result.entryType, 'reminder');
+    });
+
+    it('should support entryType: "reminder" and default startTime/endTime to 00:00/23:59 if omitted', () => {
+      const result = validateMeetingData({
+        title: 'Renew TLS Certificate',
+        date: '2026-11-02',
+        entryType: 'reminder'
+      });
+
+      assert.equal(result.entryType, 'reminder');
+      assert.equal(result.startTime, '00:00');
+      assert.equal(result.endTime, '23:59');
+    });
+
+    it('should accept sourceId and externalUid in both camelCase and snake_case', () => {
+      const result1 = validateMeetingData({
+        title: 'External Sync',
+        startTime: '14:00',
+        endTime: '15:00',
+        date: '2026-11-02',
+        sourceId: 'src-123',
+        externalUid: 'uid-abc-999'
+      });
+      assert.equal(result1.sourceId, 'src-123');
+      assert.equal(result1.externalUid, 'uid-abc-999');
+
+      const result2 = validateMeetingData({
+        title: 'External Sync 2',
+        startTime: '14:00',
+        endTime: '15:00',
+        date: '2026-11-02',
+        source_id: 'src-456',
+        external_uid: 'uid-xyz-000',
+        entry_type: 'reminder',
+        all_day: 1
+      });
+      assert.equal(result2.sourceId, 'src-456');
+      assert.equal(result2.externalUid, 'uid-xyz-000');
+      assert.equal(result2.entryType, 'reminder');
+      assert.equal(result2.allDay, 1);
+    });
+
+    it('should throw ValidationError if entryType is invalid', () => {
+      assert.throws(
+        () => validateMeetingData({
+          title: 'Invalid Entry',
+          startTime: '10:00',
+          endTime: '11:00',
+          date: '2026-11-02',
+          entryType: 'invalid_type'
+        }),
+        (err) => err instanceof ValidationError && /entryType/i.test(err.message)
+      );
+    });
   });
 });
