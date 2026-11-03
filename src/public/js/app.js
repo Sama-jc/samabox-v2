@@ -488,7 +488,11 @@ export async function openCalendarAccountsModal() {
       const url = modalEl.querySelector('#input-sub-url')?.value?.trim();
       const color = modalEl.querySelector('#input-sub-color')?.value || '#ea4335';
       try {
-        await api.createCalendarSource({ name, url, color, type: 'subscription' });
+        const created = await api.createCalendarSource({ name, url, color, type: 'subscription' });
+        const sourceId = created?.calendarSource?.id || created?.id;
+        if (sourceId) {
+          await api.syncCalendarSource(sourceId).catch(() => {});
+        }
         await loadDashboard();
         await openCalendarAccountsModal();
       } catch (err) {

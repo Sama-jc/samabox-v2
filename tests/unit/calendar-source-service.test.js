@@ -184,6 +184,53 @@ describe('CalendarSourceService Unit Tests', () => {
       assert.equal(updatedSource.syncStatus, 'error');
       assert.ok(updatedSource.syncError.includes('Network timeout'));
     });
+
+    it('should prune obsolete meetings whose external_uid is no longer in the synced feed', async () => {
+      const source = service.createSource({
+        name: 'Prune Sync',
+        type: 'subscription',
+        url: 'https://calendar.google.com/feed.ics'
+      });
+
+      const mockDns = async () => [{ address: '93.184.216.34', family: 4 }];
+
+      // Initial sync with 2 events: google-event-12345@google.com and google-allday-67890@google.com
+      const mockFetch1 = async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-length': String(GOOGLE_CALENDAR_ICS.length) }),
+        text: async () => GOOGLE_CALENDAR_ICS
+      });
+      await service.syncSource(source.id, { dnsLookup: mockDns, fetchFn: mockFetch1 });
+
+      const count1 = db.prepare('SELECT COUNT(*) as c FROM meetings WHERE source_id = ?').get(source.id).c;
+      assert.equal(count1, 2);
+
+      // Second sync where one meeting was removed/cancelled from remote calendar
+      const reducedIcs = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+DTSTART:20261102T093000Z
+DTEND:20261102T103000Z
+UID:google-event-12345@google.com
+SUMMARY:Sprint Planning
+END:VEVENT
+END:VCALENDAR`;
+
+      const mockFetch2 = async () => ({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-length': String(reducedIcs.length) }),
+        text: async () => reducedIcs
+      });
+      const result2 = await service.syncSource(source.id, { dnsLookup: mockDns, fetchFn: mockFetch2 });
+      assert.equal(result2.eventCount, 1);
+
+      // The second event (google-allday-67890@google.com) should now be deleted from DB!
+      const remainingMeetings = db.prepare('SELECT external_uid FROM meetings WHERE source_id = ?').all(source.id);
+      assert.equal(remainingMeetings.length, 1);
+      assert.equal(remainingMeetings[0].external_uid, 'google-event-12345@google.com');
+    });
   });
 
   describe('importManualICS', () => {
