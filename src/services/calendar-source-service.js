@@ -168,64 +168,87 @@ export class CalendarSourceService {
 
     const parsedEvents = parseICal(icsContent);
 
-    // Upsert events idempotently based on (source_id, external_uid)
-    const findStmt = this.db.prepare(`
-      SELECT id FROM meetings WHERE source_id = ? AND external_uid = ?
-    `);
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      // Upsert events idempotently based on (source_id, external_uid)
+      const findStmt = this.db.prepare(`
+        SELECT id FROM meetings WHERE source_id = ? AND external_uid = ?
+      `);
 
-    const insertStmt = this.db.prepare(`
-      INSERT INTO meetings (id, title, start_time, end_time, date, location, notes, source_id, entry_type, all_day, external_uid, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+      const insertStmt = this.db.prepare(`
+        INSERT INTO meetings (id, title, start_time, end_time, date, location, notes, source_id, entry_type, all_day, external_uid, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
 
-    const updateStmt = this.db.prepare(`
-      UPDATE meetings
-      SET title = ?, start_time = ?, end_time = ?, date = ?, location = ?, notes = ?, entry_type = ?, all_day = ?, updated_at = ?
-      WHERE id = ?
-    `);
+      const updateStmt = this.db.prepare(`
+        UPDATE meetings
+        SET title = ?, start_time = ?, end_time = ?, date = ?, location = ?, notes = ?, entry_type = ?, all_day = ?, updated_at = ?
+        WHERE id = ?
+      `);
 
-    for (const ev of parsedEvents) {
-      const existing = findStmt.get(id, ev.externalUid);
-      if (existing) {
-        updateStmt.run(
-          ev.title,
-          ev.startTime,
-          ev.endTime,
-          ev.date,
-          ev.location,
-          ev.notes,
-          ev.entryType,
-          ev.allDay,
-          now,
-          existing.id
-        );
-      } else {
-        const meetingId = crypto.randomUUID();
-        insertStmt.run(
-          meetingId,
-          ev.title,
-          ev.startTime,
-          ev.endTime,
-          ev.date,
-          ev.location,
-          ev.notes,
-          id,
-          ev.entryType,
-          ev.allDay,
-          ev.externalUid,
-          now,
-          now
-        );
+      for (const ev of parsedEvents) {
+        const existing = findStmt.get(id, ev.externalUid);
+        if (existing) {
+          updateStmt.run(
+            ev.title,
+            ev.startTime,
+            ev.endTime,
+            ev.date,
+            ev.location,
+            ev.notes,
+            ev.entryType,
+            ev.allDay,
+            now,
+            existing.id
+          );
+        } else {
+          const meetingId = crypto.randomUUID();
+          insertStmt.run(
+            meetingId,
+            ev.title,
+            ev.startTime,
+            ev.endTime,
+            ev.date,
+            ev.location,
+            ev.notes,
+            id,
+            ev.entryType,
+            ev.allDay,
+            ev.externalUid,
+            now,
+            now
+          );
+        }
       }
-    }
 
-    // Update source sync status to 'ok'
-    const statusStmt = this.db.prepare(`
-      UPDATE calendar_sources
-      SET last_synced_at = ?, sync_status = 'ok', sync_error = '', updated_at = ?
-      WHERE id = ?
-    `);
-    statusStmt.run(now, now, id);
+      // Prune obsolete meetings no longer present in synced feed
+      const currentUids = parsedEvents.map(e => e.externalUid).filter(Boolean);
+      if (currentUids.length > 0) {
+        const placeholders = currentUids.map(() => '?').join(',');
+        const pruneStmt = this.db.prepare(`
+          DELETE FROM meetings WHERE source_id = ? AND external_uid NOT IN (${placeholders})
+        `);
+        pruneStmt.run(id, ...currentUids);
+      } else {
+        const pruneAllStmt = this.db.prepare(`
+          DELETE FROM meetings WHERE source_id = ?
+        `);
+        pruneAllStmt.run(id);
+      }
+
+      // Update source sync status to 'ok'
+      const statusStmt = this.db.prepare(`
+        UPDATE calendar_sources
+        SET last_synced_at = ?, sync_status = 'ok', sync_error = '', updated_at = ?
+        WHERE id = ?
+      `);
+      statusStmt.run(now, now, id);
+
+      this.db.exec('COMMIT');
+    } catch (dbErr) {
+      this.db.exec('ROLLBACK');
+      throw dbErr;
+    }
 
     return {
       synced: true,
@@ -248,28 +271,36 @@ export class CalendarSourceService {
     const parsedEvents = parseICal(icsContent);
     const now = new Date().toISOString();
 
-    const insertStmt = this.db.prepare(`
-      INSERT INTO meetings (id, title, start_time, end_time, date, location, notes, source_id, entry_type, all_day, external_uid, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const insertStmt = this.db.prepare(`
+        INSERT INTO meetings (id, title, start_time, end_time, date, location, notes, source_id, entry_type, all_day, external_uid, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
 
-    for (const ev of parsedEvents) {
-      const meetingId = crypto.randomUUID();
-      insertStmt.run(
-        meetingId,
-        ev.title,
-        ev.startTime,
-        ev.endTime,
-        ev.date,
-        ev.location,
-        ev.notes,
-        source.id,
-        ev.entryType,
-        ev.allDay,
-        ev.externalUid,
-        now,
-        now
-      );
+      for (const ev of parsedEvents) {
+        const meetingId = crypto.randomUUID();
+        insertStmt.run(
+          meetingId,
+          ev.title,
+          ev.startTime,
+          ev.endTime,
+          ev.date,
+          ev.location,
+          ev.notes,
+          source.id,
+          ev.entryType,
+          ev.allDay,
+          ev.externalUid,
+          now,
+          now
+        );
+      }
+
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
     }
 
     return {
